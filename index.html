@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="2048 Undo">
+<meta name="theme-color" content="#f8f7ef">
+<title>2048 Undo</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<style>
+:root{
+  --u: calc(min(100vw, 430px) / 390);
+  --bg:#f8f7ef; --frame:#b8ada1; --cell:#c9c0b5; --btn:#e19c66;
+  --dark:#756e66; --label:#ece4d5; --logo:#e4c542;
+  --slide:100ms;
+  font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", Arial, sans-serif;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none}
+html,body{margin:0; height:100%; background:var(--bg); overflow:hidden; overscroll-behavior:none; touch-action:none}
+body{color:var(--dark); -webkit-font-smoothing:antialiased}
+#app{position:relative; width:min(100vw,430px); margin:0 auto; height:100%;
+  padding-top:calc(env(safe-area-inset-top) + var(--u)*14)}
+#top{position:relative; height:calc(var(--u)*150)}
+#logo{position:absolute; left:calc(var(--u)*14); top:0; width:calc(var(--u)*104); height:calc(var(--u)*106);
+  background:var(--logo); border-radius:calc(var(--u)*4); color:#fff; font-weight:800;
+  font-size:calc(var(--u)*36); display:flex; align-items:center; justify-content:center; letter-spacing:calc(var(--u)*-0.5)}
+.box{position:absolute; top:0; width:calc(var(--u)*94); height:calc(var(--u)*92); background:var(--frame);
+  border-radius:calc(var(--u)*4); color:#fff; text-align:center; font-weight:800}
+.box .lbl{color:var(--label); font-size:calc(var(--u)*15); margin-top:calc(var(--u)*13); letter-spacing:calc(var(--u)*0.3)}
+.box .val{display:inline-block; font-size:calc(var(--u)*25); margin-top:calc(var(--u)*7); white-space:nowrap; letter-spacing:calc(var(--u)*-0.3)}
+#scoreBox{left:calc(var(--u)*172)} #bestBox{left:calc(var(--u)*282)}
+.tbtn{position:absolute; top:calc(var(--u)*106); width:calc(var(--u)*94); height:calc(var(--u)*28);
+  background:var(--btn); color:#fff; border:0; border-radius:calc(var(--u)*4); font:inherit; font-weight:800;
+  font-size:calc(var(--u)*11); letter-spacing:calc(var(--u)*0.3); padding:0; touch-action:manipulation}
+#menuBtn{left:calc(var(--u)*172)} #lbBtn{left:calc(var(--u)*282)}
+#goal{margin:0 calc(var(--u)*14) 0; height:calc(var(--u)*46); font-weight:700; font-size:calc(var(--u)*16.3);
+  line-height:calc(var(--u)*20); white-space:nowrap}
+#board{position:relative; margin-left:calc(var(--u)*16); width:calc(var(--u)*357); height:calc(var(--u)*357);
+  background:var(--frame); border-radius:calc(var(--u)*6)}
+.cellbg{position:absolute; background:var(--cell); border-radius:calc(var(--u)*3)}
+.tile{position:absolute; left:0; top:0; transition:transform var(--slide) ease-in-out; will-change:transform; z-index:2}
+.tile.merged{z-index:3}
+.tin{width:100%; height:100%; border-radius:calc(var(--u)*3); display:flex; align-items:center; justify-content:center;
+  font-weight:800; white-space:nowrap}
+.tile.new .tin{animation:appear 200ms ease calc(var(--slide)*0.2) backwards}
+.tile.merged .tin{animation:pop 200ms ease}
+@keyframes appear{from{transform:scale(0); opacity:0} to{transform:scale(1); opacity:1}}
+@keyframes pop{0%{transform:scale(0.9)} 50%{transform:scale(1.18)} 100%{transform:scale(1)}}
+.noanim .tile{transition:none} .noanim .tin{animation:none!important}
+#undoWrap{display:flex; justify-content:center; margin-top:calc(var(--u)*28)}
+#undoBtn{width:calc(var(--u)*68); height:calc(var(--u)*68); border-radius:50%; border:0; background:var(--btn);
+  display:flex; align-items:center; justify-content:center; padding:0; touch-action:manipulation;
+  box-shadow:0 calc(var(--u)*2) calc(var(--u)*6) rgba(117,110,102,.25); transition:background .15s, transform .08s}
+#undoBtn:active{transform:scale(0.93)}
+#undoBtn svg{width:55%; height:55%}
+#undoBtn:disabled{background:var(--cell); box-shadow:none}
+#over{position:absolute; inset:0; border-radius:calc(var(--u)*6); background:rgba(238,228,218,.73); z-index:10;
+  display:none; flex-direction:column; align-items:center; justify-content:center; animation:fade .4s ease}
+#over.show{display:flex}
+#over h2{margin:0; font-size:calc(var(--u)*44); font-weight:800; color:var(--dark)}
+#over p{margin:calc(var(--u)*6) 0 calc(var(--u)*20); font-size:calc(var(--u)*18); font-weight:700}
+@keyframes fade{from{opacity:0} to{opacity:1}}
+.row{display:flex; gap:calc(var(--u)*10)}
+.btn{background:var(--btn); color:#fff; border:0; border-radius:calc(var(--u)*5); font:inherit; font-weight:800;
+  font-size:calc(var(--u)*16); padding:calc(var(--u)*11) calc(var(--u)*18); touch-action:manipulation}
+.btn.grey{background:var(--frame)}
+.btn:disabled{opacity:.5}
+/* modals */
+.modal{position:fixed; inset:0; background:rgba(117,110,102,.45); z-index:50; display:none; align-items:center; justify-content:center; padding:calc(var(--u)*16)}
+.modal.show{display:flex; animation:fade .18s ease}
+.panel{background:var(--bg); border-radius:calc(var(--u)*8); width:min(100%, calc(var(--u)*340)); max-height:88vh; overflow:auto;
+  padding:calc(var(--u)*20); box-shadow:0 calc(var(--u)*8) calc(var(--u)*30) rgba(0,0,0,.2); touch-action:pan-y}
+.panel h3{margin:0 0 calc(var(--u)*16); font-size:calc(var(--u)*26); font-weight:800; text-align:center}
+.panel .stack{display:flex; flex-direction:column; gap:calc(var(--u)*10)}
+.panel .stack .btn{width:100%}
+.sect{font-weight:800; font-size:calc(var(--u)*13); letter-spacing:calc(var(--u)*0.5); margin:calc(var(--u)*16) 0 calc(var(--u)*8); text-transform:uppercase}
+.seg{display:flex; gap:calc(var(--u)*6); flex-wrap:wrap}
+.seg button{flex:1; min-width:calc(var(--u)*44); background:var(--cell); color:#fff; border:0; border-radius:calc(var(--u)*5);
+  font:inherit; font-weight:800; font-size:calc(var(--u)*14); padding:calc(var(--u)*9) 0; touch-action:manipulation}
+.seg button.on{background:var(--btn)}
+.note{font-size:calc(var(--u)*12.5); font-weight:600; margin-top:calc(var(--u)*6); line-height:1.35}
+textarea{width:100%; height:calc(var(--u)*90); border:2px solid var(--frame); border-radius:calc(var(--u)*5); background:#fff;
+  font:12px ui-monospace,monospace; color:var(--dark); padding:6px; -webkit-user-select:text; user-select:text; resize:none}
+.lb{width:100%; border-collapse:collapse; font-weight:700; font-size:calc(var(--u)*14)}
+.lb td{padding:calc(var(--u)*7) calc(var(--u)*3); border-bottom:1px solid #e6dfd3; vertical-align:middle}
+.lb td.r{text-align:right} .lb .rk{width:1.6em; color:#a99f94}
+.lb .sc{font-size:calc(var(--u)*16); font-weight:800}
+.lb .sub{font-size:calc(var(--u)*11.5); color:#a99f94; font-weight:700}
+.chip{display:inline-block; min-width:calc(var(--u)*46); padding:calc(var(--u)*3) calc(var(--u)*5); border-radius:calc(var(--u)*3);
+  text-align:center; font-weight:800; font-size:calc(var(--u)*12)}
+.empty{text-align:center; padding:calc(var(--u)*20) 0; font-weight:700}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div id="logo">2048</div>
+    <div class="box" id="scoreBox"><div class="lbl">SCORE</div><div class="val" id="score">0</div></div>
+    <div class="box" id="bestBox"><div class="lbl">BEST</div><div class="val" id="best">0</div></div>
+    <button class="tbtn" id="menuBtn">MENU</button>
+    <button class="tbtn" id="lbBtn">LEADERBOARD</button>
+  </div>
+  <div id="goal"></div>
+  <div id="board">
+    <div id="cells"></div>
+    <div id="tiles"></div>
+    <div id="over"><h2>Game over!</h2><p id="overScore"></p>
+      <div class="row"><button class="btn" id="overUndo">Undo</button><button class="btn" id="overNew">New Game</button></div></div>
+  </div>
+  <div id="undoWrap"><button id="undoBtn" aria-label="Undo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8.5 4.5 4 9l4.5 4.5"/><path d="M4.5 9H14a5.5 5.5 0 0 1 0 11h-3.5"/></svg>
+  </button></div>
+</div>
+
+<div class="modal" id="menuModal"><div class="panel"><h3>Menu</h3><div class="stack">
+  <button class="btn" data-act="continue">Continue</button>
+  <button class="btn" data-act="new">New Game</button>
+  <button class="btn" data-act="settings">Settings</button>
+</div></div></div>
+
+<div class="modal" id="setModal"><div class="panel"><h3>Settings</h3>
+  <div class="sect">Board size</div><div class="seg" id="sizeSeg"></div>
+  <div class="note">Every size keeps its own game, best score and leaderboard.</div>
+  <div class="sect">Animation speed</div><div class="seg" id="speedSeg"></div>
+  <div class="sect">Backup</div>
+  <div class="row"><button class="btn grey" id="expBtn" style="flex:1">Export</button><button class="btn grey" id="impBtn" style="flex:1">Import</button></div>
+  <div id="bkArea" style="display:none; margin-top:10px">
+    <textarea id="bkText"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" id="bkAction" style="flex:1"></button></div>
+    <div class="note" id="bkNote"></div>
+  </div>
+  <div class="sect">Best score</div>
+  <button class="btn grey" id="resetBest" style="width:100%">Reset best score</button>
+  <div style="margin-top:18px"><button class="btn" data-close style="width:100%">Done</button></div>
+</div></div>
+
+<div class="modal" id="lbModal"><div class="panel"><h3 id="lbTitle">Leaderboard</h3>
+  <div id="lbBody"></div>
+  <div style="margin-top:16px"><button class="btn" data-close style="width:100%">Close</button></div>
+</div></div>
+
+<div class="modal" id="cfModal"><div class="panel"><h3 id="cfTitle"></h3>
+  <div class="note" id="cfText" style="text-align:center; font-size:calc(var(--u)*15); margin:0 0 18px"></div>
+  <div class="row"><button class="btn grey" id="cfNo" style="flex:1">Cancel</button><button class="btn" id="cfYes" style="flex:1">OK</button></div>
+</div></div>
+
+<script>
+(() => {
+'use strict';
+const P = 'u2048:';
+const SPEEDS = {Normal:100, Fast:60, Off:0};
+const $ = id => document.getElementById(id);
+
+// ---------- storage ----------
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(P+k); return v==null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){
+    try{ localStorage.setItem(P+k, JSON.stringify(v)); return true; }
+    catch(e){ return false; }
+  }
+};
+
+let meta = store.get('meta', null);
+if(!meta){
+  meta = {size:4, speed:'Normal', best:{4:164148}, record:{4:13},
+    lb:{4:[{id:'orig', score:164148, tile:13, date:null, undos:null}]}};
+  store.set('meta', meta);
+}
+const saveMeta = () => store.set('meta', meta);
+
+// ---------- colours ----------
+const COLORS = {1:['#ece4db','#756e66'],2:['#eadfca','#756e66'],3:['#e8b381'],4:['#df915f'],5:['#e8806a'],6:['#dc5f45'],
+  7:['#eed97b'],8:['#e9cd5c'],9:['#dcbd45'],10:['#d9b23a'],11:['#e4c542'],12:['#80d799'],13:['#5fa3e0'],
+  14:['#8c7fe0'],15:['#d46fb5'],16:['#c8202a']};
+function colorOf(e){ const c = COLORS[e]; if(c) return [c[0], c[1]||'#fff']; return ['#3d3a33','#f2d27a']; }
+const val = e => Math.pow(2, e);
+const fmt = n => String(n);
+
+// ---------- state ----------
+let N, game, grid, tileEls = new Map(), nextId = 1;
+let pending = null, busy = false;
+
+function emptyCells(){ return new Array(N*N).fill(0); }
+const enc = cells => cells.map(e => e.toString(36)).join('');
+const dec = s => s.split('').map(ch => parseInt(ch, 36));
+
+function loadGame(n){
+  N = n;
+  let g = store.get('game:'+n, null);
+  if(!g || !g.cells || g.cells.length !== n*n){
+    g = {id: Date.now(), cells: enc(emptyCells()), score:0, hist:[], undos:0, over:false};
+    const c = emptyCells(); spawnInto(c); spawnInto(c); g.cells = enc(c);
+  }
+  game = g;
+  if(meta.best[n] == null) meta.best[n] = 0;
+  if(meta.record[n] == null) meta.record[n] = 0;
+  if(!meta.lb[n]) meta.lb[n] = [];
+}
+function saveGame(){
+  game.cells = enc(cellsFromGrid());
+  if(!store.set('game:'+N, game)){
+    // storage full: trim oldest half of the undo history and retry
+    while(game.hist.length > 50){
+      game.hist = game.hist.slice(Math.floor(game.hist.length/2));
+      if(store.set('game:'+N, game)) break;
+    }
+  }
+}
+function spawnInto(cells){
+  const free = []; cells.forEach((e,i) => { if(!e) free.push(i); });
+  if(!free.length) return -1;
+  const i = free[Math.floor(Math.random()*free.length)];
+  cells[i] = Math.random() < 0.9 ? 1 : 2;
+  return i;
+}
+
+// ---------- geometry ----------
+let G = {};
+function geometry(){
+  const B = $('board').clientWidth;
+  const c = B / (N + 0.14*(N+1));
+  const g = 0.14*c;
+  G = {B, c, g};
+}
+const pos = (r, c) => [G.g + c*(G.c+G.g), G.g + r*(G.c+G.g)];
+function fontFor(e){
+  const d = String(val(e)).length;
+  const f = d<=2 ? 0.5 : d===3 ? 0.42 : d===4 ? 0.33 : 1.35/d;
+  return f * G.c;
+}
+
+function buildCells(){
+  const wrap = $('cells'); wrap.innerHTML = '';
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const d = document.createElement('div'); d.className = 'cellbg';
+    const [x,y] = pos(r,c);
+    Object.assign(d.style, {left:x+'px', top:y+'px', width:G.c+'px', height:G.c+'px'});
+    wrap.appendChild(d);
+  }
+}
+function makeTile(t, cls){
+  const el = document.createElement('div'); el.className = 'tile' + (cls ? ' '+cls : '');
+  const inn = document.createElement('div'); inn.className = 'tin';
+  el.appendChild(inn);
+  el.style.width = el.style.height = G.c + 'px';
+  styleTile(el, t.e);
+  placeEl(el, t.r, t.c);
+  $('tiles').appendChild(el);
+  tileEls.set(t.id, el);
+  return el;
+}
+function styleTile(el, e){
+  const [bg, fg] = colorOf(e); const inn = el.firstChild;
+  inn.style.background = bg; inn.style.color = fg;
+  inn.style.fontSize = fontFor(e) + 'px';
+  inn.textContent = val(e);
+}
+function placeEl(el, r, c){ const [x,y] = pos(r,c); el.style.transform = `translate(${x}px,${y}px)`; }
+
+function cellsFromGrid(){ const a = emptyCells(); for(let r=0;r<N;r++) for(let c=0;c<N;c++){ const t = grid[r][c]; if(t) a[r*N+c] = t.e; } return a; }
+function gridFromCells(cells){
+  grid = []; for(let r=0;r<N;r++){ grid.push([]); for(let c=0;c<N;c++){ const e = cells[r*N+c]; grid[r].push(e ? {id:nextId++, e, r, c} : null); } }
+}
+function renderAll(anim){
+  $('tiles').innerHTML = ''; tileEls.clear();
+  $('board').classList.add('noanim');
+  for(const row of grid) for(const t of row) if(t) makeTile(t, anim ? 'new' : '');
+  void $('board').offsetWidth;
+  if(!anim) requestAnimationFrame(() => $('board').classList.remove('noanim'));
+  else $('board').classList.remove('noanim');
+}
+
+// ---------- HUD ----------
+function setVal(el, n){
+  el.textContent = fmt(n);
+  el.style.fontSize = '';
+  const max = el.parentElement.clientWidth * 0.9;
+  let fs = parseFloat(getComputedStyle(el).fontSize);
+  while(el.scrollWidth > max && fs > 8){ fs -= 0.5; el.style.fontSize = fs + 'px'; }
+}
+function hud(){
+  setVal($('score'), game.score);
+  setVal($('best'), meta.best[N]);
+  const goal = Math.max(2048, val(meta.record[N]) * 2);
+  $('goal').textContent = `Your next goal is to get to the ${goal} tile!`;
+  $('undoBtn').disabled = game.hist.length === 0;
+  $('overUndo').disabled = game.hist.length === 0;
+  $('overScore').textContent = 'Score: ' + game.score;
+  $('over').classList.toggle('show', !!game.over);
+}
+
+// ---------- moves ----------
+const DIRS = {left:[0,-1], right:[0,1], up:[-1,0], down:[1,0]};
+function lines(dir){
+  const L = [];
+  for(let i=0;i<N;i++){
+    const line = [];
+    for(let j=0;j<N;j++){
+      if(dir==='left') line.push([i,j]);
+      else if(dir==='right') line.push([i,N-1-j]);
+      else if(dir==='up') line.push([j,i]);
+      else line.push([N-1-j,i]);
+    }
+    L.push(line);
+  }
+  return L;
+}
+function canMove(){
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const t = grid[r][c]; if(!t) return true;
+    if(c+1<N && grid[r][c+1] && grid[r][c+1].e===t.e) return true;
+    if(r+1<N && grid[r+1][c] && grid[r+1][c].e===t.e) return true;
+  }
+  return false;
+}
+function finishPending(){
+  if(!pending) return;
+  clearTimeout(pending.timer);
+  const p = pending; pending = null;
+  for(const t of p.removed){ const el = tileEls.get(t.id); if(el){ el.remove(); tileEls.delete(t.id); } }
+  for(const t of p.merged) makeTile(t, 'merged');
+  if(p.spawn) makeTile(p.spawn, 'new');
+  hud();
+}
+function move(dir){
+  if(game.over || anyModal()) return;
+  finishPending();
+  const before = enc(cellsFromGrid()) + '|' + game.score;
+  const ng = []; for(let r=0;r<N;r++) ng.push(new Array(N).fill(null));
+  const moves = [], removed = [], merged = [];
+  let gained = 0, changed = false;
+  for(const line of lines(dir)){
+    const ts = line.map(([r,c]) => grid[r][c]).filter(Boolean);
+    let k = 0;
+    for(let i=0;i<ts.length;i++){
+      const [tr, tc] = line[k];
+      const a = ts[i], b = ts[i+1];
+      if(b && b.e === a.e){
+        const m = {id:nextId++, e:a.e+1, r:tr, c:tc};
+        moves.push([a,tr,tc],[b,tr,tc]); removed.push(a,b); merged.push(m);
+        ng[tr][tc] = m; gained += val(m.e); changed = true; i++;
+      } else {
+        if(a.r!==tr || a.c!==tc) changed = true;
+        moves.push([a,tr,tc]); a.r = tr; a.c = tc; ng[tr][tc] = a;
+      }
+      k++;
+    }
+  }
+  if(!changed) return;
+  game.hist.push(before);
+  grid = ng;
+  game.score += gained;
+  // spawn: always a fresh random roll
+  const free = []; for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(!grid[r][c]) free.push([r,c]);
+  let spawn = null;
+  if(free.length){
+    const [r,c] = free[Math.floor(Math.random()*free.length)];
+    spawn = {id:nextId++, e: Math.random()<0.9 ? 1 : 2, r, c}; grid[r][c] = spawn;
+  }
+  // records
+  if(game.score > (meta.best[N]||0)) meta.best[N] = game.score;
+  for(const m of merged) if(m.e > (meta.record[N]||0)) meta.record[N] = m.e;
+  game.over = !canMove();
+  if(game.over) upsertLb();
+  saveGame(); saveMeta();
+  // animate
+  for(const [t,r,c] of moves){ const el = tileEls.get(t.id); if(el) placeEl(el, r, c); }
+  const ms = SPEEDS[meta.speed] ?? 100;
+  pending = {removed, merged, spawn, timer:0};
+  hud(); $('over').classList.remove('show');
+  if(ms === 0) finishPending();
+  else pending.timer = setTimeout(finishPending, ms);
+}
+function undo(){
+  if(!game.hist.length || anyModal('over')) return;
+  finishPending();
+  const [cs, sc] = game.hist.pop().split('|');
+  gridFromCells(dec(cs)); game.score = +sc; game.over = false; game.undos++;
+  saveGame(); renderAll(false); hud();
+}
+
+// ---------- leaderboard ----------
+function upsertLb(){
+  if(game.score <= 0) return;
+  const tile = Math.max(...cellsFromGrid());
+  const list = meta.lb[N] || (meta.lb[N] = []);
+  const e = list.find(x => x.id === game.id);
+  if(e){ if(game.score >= e.score){ e.score = game.score; e.tile = Math.max(e.tile, tile); e.undos = game.undos; e.date = Date.now(); } }
+  else list.push({id:game.id, score:game.score, tile, date:Date.now(), undos:game.undos});
+  list.sort((a,b) => b.score - a.score);
+  meta.lb[N] = list.slice(0, 10);
+  saveMeta();
+}
+function showLb(){
+  $('lbTitle').textContent = `Leaderboard · ${N}×${N}`;
+  const list = meta.lb[N] || [];
+  if(!list.length){ $('lbBody').innerHTML = '<div class="empty">No games yet.</div>'; }
+  else {
+    const rows = list.map((x,i) => {
+      const [bg, fg] = colorOf(x.tile);
+      const d = x.date ? new Date(x.date).toLocaleDateString('de-CH') : 'Original app';
+      const u = x.undos == null ? '' : ` · ${x.undos} undo${x.undos===1?'':'s'}`;
+      return `<tr><td class="rk">${i+1}</td><td><div class="sc">${x.score}</div><div class="sub">${d}${u}</div></td>
+        <td class="r"><span class="chip" style="background:${bg};color:${fg}">${val(x.tile)}</span></td></tr>`;
+    }).join('');
+    $('lbBody').innerHTML = `<table class="lb">${rows}</table>`;
+  }
+  openModal('lbModal');
+}
+
+// ---------- modals ----------
+const modals = ['menuModal','setModal','lbModal','cfModal'];
+function anyModal(){ return modals.some(m => $(m).classList.contains('show')); }
+function openModal(id){ $(id).classList.add('show'); }
+function closeModal(id){ $(id).classList.remove('show'); }
+function confirmBox(title, text, yes, cb){
+  $('cfTitle').textContent = title; $('cfText').textContent = text; $('cfYes').textContent = yes;
+  $('cfYes').onclick = () => { closeModal('cfModal'); cb(); };
+  $('cfNo').onclick = () => closeModal('cfModal');
+  openModal('cfModal');
+}
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => closeModal(b.closest('.modal').id));
+modals.forEach(m => $(m).addEventListener('click', e => { if(e.target.id === m) closeModal(m); }));
+
+function newGame(){
+  finishPending();
+  upsertLb();
+  game = {id: Date.now(), cells:'', score:0, hist:[], undos:0, over:false};
+  const c = emptyCells(); spawnInto(c); spawnInto(c);
+  gridFromCells(c); saveGame(); renderAll(true); hud();
+}
+function askNew(){
+  if(game.score === 0 && !game.hist.length){ newGame(); return; }
+  confirmBox('New game?', 'Your current game will end and go to the leaderboard.', 'New Game', newGame);
+}
+$('menuBtn').onclick = () => openModal('menuModal');
+$('lbBtn').onclick = showLb;
+$('menuModal').querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+  closeModal('menuModal');
+  const a = b.dataset.act;
+  if(a === 'new') askNew();
+  if(a === 'settings') showSettings();
+});
+$('undoBtn').onclick = undo;
+$('overUndo').onclick = undo;
+$('overNew').onclick = newGame;
+
+// ---------- settings ----------
+function showSettings(){
+  const ss = $('sizeSeg'); ss.innerHTML = '';
+  for(let n=3;n<=8;n++){
+    const b = document.createElement('button'); b.textContent = n+'×'+n; b.className = n===N ? 'on' : '';
+    b.onclick = () => { if(n===N) return; switchSize(n); showSettings(); };
+    ss.appendChild(b);
+  }
+  const sp = $('speedSeg'); sp.innerHTML = '';
+  for(const k of Object.keys(SPEEDS)){
+    const b = document.createElement('button'); b.textContent = k; b.className = k===meta.speed ? 'on' : '';
+    b.onclick = () => { meta.speed = k; saveMeta(); applySpeed(); showSettings(); };
+    sp.appendChild(b);
+  }
+  $('bkArea').style.display = 'none';
+  openModal('setModal');
+}
+function applySpeed(){ document.documentElement.style.setProperty('--slide', (SPEEDS[meta.speed] ?? 100) + 'ms'); }
+function switchSize(n){
+  finishPending(); saveGame();
+  meta.size = n; saveMeta();
+  loadGame(n); saveMeta(); geometry(); buildCells(); gridFromCells(dec(game.cells)); renderAll(false); hud();
+}
+$('resetBest').onclick = () => confirmBox('Reset best score?', `Best for ${N}×${N} will be set to your current score (${game.score}).`, 'Reset', () => {
+  meta.best[N] = game.score; saveMeta(); hud();
+});
+function b64e(s){ return btoa(unescape(encodeURIComponent(s))); }
+function b64d(s){ return decodeURIComponent(escape(atob(s.trim()))); }
+$('expBtn').onclick = () => {
+  saveGame(); saveMeta();
+  const data = {}; for(let i=0;i<localStorage.length;i++){ const k = localStorage.key(i); if(k.startsWith(P)) data[k] = localStorage.getItem(k); }
+  $('bkText').value = b64e(JSON.stringify(data)); $('bkText').readOnly = true;
+  $('bkAction').textContent = 'Copy'; $('bkNote').textContent = 'Save this code somewhere safe (e.g. Notes).';
+  $('bkAction').onclick = async () => {
+    try{ await navigator.clipboard.writeText($('bkText').value); $('bkNote').textContent = 'Copied!'; }
+    catch(e){ $('bkText').select(); $('bkNote').textContent = 'Select all and copy manually.'; }
+  };
+  $('bkArea').style.display = 'block';
+};
+$('impBtn').onclick = () => {
+  $('bkText').value = ''; $('bkText').readOnly = false;
+  $('bkAction').textContent = 'Import'; $('bkNote').textContent = 'Paste a backup code. This replaces all current data.';
+  $('bkAction').onclick = () => {
+    let data; try{ data = JSON.parse(b64d($('bkText').value)); }catch(e){ $('bkNote').textContent = 'Invalid code.'; return; }
+    confirmBox('Import backup?', 'All current games and scores will be replaced.', 'Import', () => {
+      Object.keys(localStorage).filter(k => k.startsWith(P)).forEach(k => localStorage.removeItem(k));
+      for(const [k,v] of Object.entries(data)) if(k.startsWith(P)) localStorage.setItem(k, v);
+      location.reload();
+    });
+  };
+  $('bkArea').style.display = 'block';
+};
+
+// ---------- input ----------
+let sx = 0, sy = 0, tracking = false;
+document.addEventListener('touchstart', e => {
+  if(e.touches.length !== 1) { tracking = false; return; }
+  sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
+}, {passive:true});
+document.addEventListener('touchmove', e => {
+  if(!e.target.closest('.panel')) e.preventDefault();
+}, {passive:false});
+document.addEventListener('touchend', e => {
+  if(!tracking) return; tracking = false;
+  const t = e.changedTouches[0]; const dx = t.clientX - sx, dy = t.clientY - sy;
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if(Math.max(ax, ay) < 18) return;
+  if(ax > ay) move(dx > 0 ? 'right' : 'left'); else move(dy > 0 ? 'down' : 'up');
+});
+document.addEventListener('keydown', e => {
+  const k = {ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down', a:'left', d:'right', w:'up', s:'down'}[e.key];
+  if(k){ e.preventDefault(); move(k); return; }
+  if(e.key === 'u' || e.key === 'Backspace' || ((e.metaKey||e.ctrlKey) && e.key === 'z')){ e.preventDefault(); undo(); }
+  if(e.key === 'Escape') modals.forEach(closeModal);
+});
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+
+window.addEventListener('resize', () => { finishPending(); geometry(); buildCells(); renderAll(false); });
+document.addEventListener('visibilitychange', () => { if(document.hidden){ finishPending(); saveGame(); saveMeta(); } });
+window.addEventListener('pagehide', () => { finishPending(); saveGame(); saveMeta(); });
+
+// ---------- boot ----------
+applySpeed();
+loadGame(meta.size || 4);
+saveMeta();
+geometry(); buildCells(); gridFromCells(dec(game.cells)); renderAll(false); hud();
+saveGame();
+
+if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+// test hook
+window.__g = {move, undo, newGame, switchSize, get state(){ return {N, cells:cellsFromGrid(), score:game.score, hist:game.hist.length, over:game.over}; },
+  set(cells, score){ finishPending(); gridFromCells(cells); game.score = score||0; game.over = !canMove(); saveGame(); renderAll(false); hud(); }};
+})();
+</script>
+</body>
+</html>
