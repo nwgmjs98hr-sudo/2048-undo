@@ -27,30 +27,31 @@ body{color:var(--dark); -webkit-font-smoothing:antialiased}
   padding-top:calc(env(safe-area-inset-top) + var(--u)*14)}
 #top{position:relative; height:calc(var(--u)*150)}
 #logo{position:absolute; left:calc(var(--u)*14); top:0; width:calc(var(--u)*104); height:calc(var(--u)*106);
-  background:var(--logo); border-radius:calc(var(--u)*4); color:#fff; font-weight:800;
+  background:var(--logo); border-radius:calc(var(--u)*4); color:#fff; font-weight:700;
   font-size:calc(var(--u)*36); display:flex; align-items:center; justify-content:center; letter-spacing:calc(var(--u)*-0.5)}
 .box{position:absolute; top:0; width:calc(var(--u)*94); height:calc(var(--u)*92); background:var(--frame);
-  border-radius:calc(var(--u)*4); color:#fff; text-align:center; font-weight:800}
+  border-radius:calc(var(--u)*4); color:#fff; text-align:center; font-weight:700}
 .box .lbl{color:var(--label); font-size:calc(var(--u)*15); margin-top:calc(var(--u)*13); letter-spacing:calc(var(--u)*0.3)}
 .box .val{display:inline-block; font-size:calc(var(--u)*25); margin-top:calc(var(--u)*7); white-space:nowrap; letter-spacing:calc(var(--u)*-0.3)}
 #scoreBox{left:calc(var(--u)*172)} #bestBox{left:calc(var(--u)*282)}
 .tbtn{position:absolute; top:calc(var(--u)*106); width:calc(var(--u)*94); height:calc(var(--u)*28);
-  background:var(--btn); color:#fff; border:0; border-radius:calc(var(--u)*4); font:inherit; font-weight:800;
+  background:var(--btn); color:#fff; border:0; border-radius:calc(var(--u)*4); font:inherit; font-weight:700;
   font-size:calc(var(--u)*11); letter-spacing:calc(var(--u)*0.3); padding:0; touch-action:manipulation}
 #menuBtn{left:calc(var(--u)*172)} #lbBtn{left:calc(var(--u)*282)}
-#goal{margin:0 calc(var(--u)*14) 0; height:calc(var(--u)*46); font-weight:700; font-size:calc(var(--u)*16.3);
+#goal{margin:0 calc(var(--u)*14) 0; height:calc(var(--u)*46); font-weight:600; font-size:calc(var(--u)*16.3);
   line-height:calc(var(--u)*20); white-space:nowrap}
 #board{position:relative; margin-left:calc(var(--u)*16); width:calc(var(--u)*357); height:calc(var(--u)*357);
   background:var(--frame); border-radius:calc(var(--u)*6)}
 .cellbg{position:absolute; background:var(--cell); border-radius:calc(var(--u)*3)}
-.tile{position:absolute; left:0; top:0; transition:transform var(--slide) ease-in-out; will-change:transform; z-index:2}
+.tile{position:absolute; left:0; top:0; transition:transform var(--slide) cubic-bezier(.25,.6,.3,1); will-change:transform; z-index:2; backface-visibility:hidden}
 .tile.merged{z-index:3}
 .tin{width:100%; height:100%; border-radius:calc(var(--u)*3); display:flex; align-items:center; justify-content:center;
-  font-weight:800; white-space:nowrap}
-.tile.new .tin{animation:appear 200ms ease calc(var(--slide)*0.2) backwards}
-.tile.merged .tin{animation:pop 200ms ease}
+  font-weight:700; white-space:nowrap}
+.tile.new .tin{animation:appear 140ms ease-out backwards}
+.tile.merged .tin{animation:pop 150ms ease-out}
+.snap .tile{transition:none!important} .snap .tin{animation:none!important}
 @keyframes appear{from{transform:scale(0); opacity:0} to{transform:scale(1); opacity:1}}
-@keyframes pop{0%{transform:scale(0.9)} 50%{transform:scale(1.18)} 100%{transform:scale(1)}}
+@keyframes pop{0%{transform:scale(1)} 45%{transform:scale(1.15)} 100%{transform:scale(1)}}
 .noanim .tile{transition:none} .noanim .tin{animation:none!important}
 #undoWrap{display:flex; justify-content:center; margin-top:calc(var(--u)*28)}
 #undoBtn{width:calc(var(--u)*68); height:calc(var(--u)*68); border-radius:50%; border:0; background:var(--btn);
@@ -62,11 +63,11 @@ body{color:var(--dark); -webkit-font-smoothing:antialiased}
 #over{position:absolute; inset:0; border-radius:calc(var(--u)*6); background:rgba(238,228,218,.73); z-index:10;
   display:none; flex-direction:column; align-items:center; justify-content:center; animation:fade .4s ease}
 #over.show{display:flex}
-#over h2{margin:0; font-size:calc(var(--u)*44); font-weight:800; color:var(--dark)}
-#over p{margin:calc(var(--u)*6) 0 calc(var(--u)*20); font-size:calc(var(--u)*18); font-weight:700}
+#over h2{margin:0; font-size:calc(var(--u)*44); font-weight:700; color:var(--dark)}
+#over p{margin:calc(var(--u)*6) 0 calc(var(--u)*20); font-size:calc(var(--u)*18); font-weight:600}
 @keyframes fade{from{opacity:0} to{opacity:1}}
 .row{display:flex; gap:calc(var(--u)*10)}
-.btn{background:var(--btn); color:#fff; border:0; border-radius:calc(var(--u)*5); font:inherit; font-weight:800;
+.btn{background:var(--btn); color:#fff; border:0; border-radius:calc(var(--u)*5); font:inherit; font-weight:700;
   font-size:calc(var(--u)*16); padding:calc(var(--u)*11) calc(var(--u)*18); touch-action:manipulation}
 .btn.grey{background:var(--frame)}
 .btn:disabled{opacity:.5}
@@ -75,13 +76,13 @@ body{color:var(--dark); -webkit-font-smoothing:antialiased}
 .modal.show{display:flex; animation:fade .18s ease}
 .panel{background:var(--bg); border-radius:calc(var(--u)*8); width:min(100%, calc(var(--u)*340)); max-height:88vh; overflow:auto;
   padding:calc(var(--u)*20); box-shadow:0 calc(var(--u)*8) calc(var(--u)*30) rgba(0,0,0,.2); touch-action:pan-y}
-.panel h3{margin:0 0 calc(var(--u)*16); font-size:calc(var(--u)*26); font-weight:800; text-align:center}
+.panel h3{margin:0 0 calc(var(--u)*16); font-size:calc(var(--u)*26); font-weight:700; text-align:center}
 .panel .stack{display:flex; flex-direction:column; gap:calc(var(--u)*10)}
 .panel .stack .btn{width:100%}
-.sect{font-weight:800; font-size:calc(var(--u)*13); letter-spacing:calc(var(--u)*0.5); margin:calc(var(--u)*16) 0 calc(var(--u)*8); text-transform:uppercase}
+.sect{font-weight:700; font-size:calc(var(--u)*13); letter-spacing:calc(var(--u)*0.5); margin:calc(var(--u)*16) 0 calc(var(--u)*8); text-transform:uppercase}
 .seg{display:flex; gap:calc(var(--u)*6); flex-wrap:wrap}
 .seg button{flex:1; min-width:calc(var(--u)*44); background:var(--cell); color:#fff; border:0; border-radius:calc(var(--u)*5);
-  font:inherit; font-weight:800; font-size:calc(var(--u)*14); padding:calc(var(--u)*9) 0; touch-action:manipulation}
+  font:inherit; font-weight:700; font-size:calc(var(--u)*14); padding:calc(var(--u)*9) 0; touch-action:manipulation}
 .seg button.on{background:var(--btn)}
 .note{font-size:calc(var(--u)*12.5); font-weight:600; margin-top:calc(var(--u)*6); line-height:1.35}
 textarea{width:100%; height:calc(var(--u)*90); border:2px solid var(--frame); border-radius:calc(var(--u)*5); background:#fff;
@@ -89,10 +90,10 @@ textarea{width:100%; height:calc(var(--u)*90); border:2px solid var(--frame); bo
 .lb{width:100%; border-collapse:collapse; font-weight:700; font-size:calc(var(--u)*14)}
 .lb td{padding:calc(var(--u)*7) calc(var(--u)*3); border-bottom:1px solid #e6dfd3; vertical-align:middle}
 .lb td.r{text-align:right} .lb .rk{width:1.6em; color:#a99f94}
-.lb .sc{font-size:calc(var(--u)*16); font-weight:800}
+.lb .sc{font-size:calc(var(--u)*16); font-weight:700}
 .lb .sub{font-size:calc(var(--u)*11.5); color:#a99f94; font-weight:700}
 .chip{display:inline-block; min-width:calc(var(--u)*46); padding:calc(var(--u)*3) calc(var(--u)*5); border-radius:calc(var(--u)*3);
-  text-align:center; font-weight:800; font-size:calc(var(--u)*12)}
+  text-align:center; font-weight:700; font-size:calc(var(--u)*12)}
 .empty{text-align:center; padding:calc(var(--u)*20) 0; font-weight:700}
 </style>
 </head>
@@ -154,7 +155,7 @@ textarea{width:100%; height:calc(var(--u)*90); border:2px solid var(--frame); bo
 (() => {
 'use strict';
 const P = 'u2048:';
-const SPEEDS = {Normal:100, Fast:60, Off:0};
+const SPEEDS = {Normal:90, Fast:55, Off:0};
 const $ = id => document.getElementById(id);
 
 // ---------- storage ----------
@@ -261,7 +262,7 @@ function styleTile(el, e){
   inn.style.fontSize = fontFor(e) + 'px';
   inn.textContent = val(e);
 }
-function placeEl(el, r, c){ const [x,y] = pos(r,c); el.style.transform = `translate(${x}px,${y}px)`; }
+function placeEl(el, r, c){ const [x,y] = pos(r,c); el.style.transform = `translate3d(${x}px,${y}px,0)`; }
 
 function cellsFromGrid(){ const a = emptyCells(); for(let r=0;r<N;r++) for(let c=0;c<N;c++){ const t = grid[r][c]; if(t) a[r*N+c] = t.e; } return a; }
 function gridFromCells(cells){
@@ -278,7 +279,8 @@ function renderAll(anim){
 
 // ---------- HUD ----------
 function setVal(el, n){
-  el.textContent = fmt(n);
+  const s = fmt(n); if(el.textContent === s) return;
+  el.textContent = s;
   el.style.fontSize = '';
   const max = el.parentElement.clientWidth * 0.9;
   let fs = parseFloat(getComputedStyle(el).fontSize);
@@ -319,18 +321,23 @@ function canMove(){
   }
   return false;
 }
-function finishPending(){
-  if(!pending) return;
+function snap(){ const b = $('tiles'); b.classList.add('snap'); void b.offsetWidth; b.classList.remove('snap'); }
+function finishPending(interrupt){
+  if(!pending){ if(interrupt) snap(); return; }
   clearTimeout(pending.timer);
   const p = pending; pending = null;
   for(const t of p.removed){ const el = tileEls.get(t.id); if(el){ el.remove(); tileEls.delete(t.id); } }
-  for(const t of p.merged) makeTile(t, 'merged');
-  if(p.spawn) makeTile(p.spawn, 'new');
-  hud();
+  for(const t of p.merged) makeTile(t, interrupt ? '' : 'merged');
+  if(p.spawn) makeTile(p.spawn, interrupt ? '' : 'new');
+  if(interrupt) snap();
+  if(!interrupt && game.over) hud();
 }
+let saveT = 0;
+function scheduleSave(){ clearTimeout(saveT); saveT = setTimeout(flushSave, 300); }
+function flushSave(){ clearTimeout(saveT); saveGame(); saveMeta(); }
 function move(dir){
   if(game.over || anyModal()) return;
-  finishPending();
+  finishPending(true);
   const before = enc(cellsFromGrid()) + '|' + game.score;
   const ng = []; for(let r=0;r<N;r++) ng.push(new Array(N).fill(null));
   const moves = [], removed = [], merged = [];
@@ -368,21 +375,21 @@ function move(dir){
   for(const m of merged) if(m.e > (meta.record[N]||0)) meta.record[N] = m.e;
   game.over = !canMove();
   if(game.over) upsertLb();
-  saveGame(); saveMeta();
+  scheduleSave();
   // animate
   for(const [t,r,c] of moves){ const el = tileEls.get(t.id); if(el) placeEl(el, r, c); }
   const ms = SPEEDS[meta.speed] ?? 100;
   pending = {removed, merged, spawn, timer:0};
   hud(); $('over').classList.remove('show');
-  if(ms === 0) finishPending();
-  else pending.timer = setTimeout(finishPending, ms);
+  if(ms === 0) finishPending(true);
+  else pending.timer = setTimeout(() => finishPending(false), ms);
 }
 function undo(){
   if(!game.hist.length || anyModal('over')) return;
   finishPending();
   const [cs, sc] = game.hist.pop().split('|');
   gridFromCells(dec(cs)); game.score = +sc; game.over = false; game.undos++;
-  saveGame(); renderAll(false); hud();
+  scheduleSave(); renderAll(false); hud();
 }
 
 // ---------- leaderboard ----------
@@ -512,6 +519,12 @@ document.addEventListener('touchstart', e => {
 }, {passive:true});
 document.addEventListener('touchmove', e => {
   if(!e.target.closest('.panel')) e.preventDefault();
+  if(!tracking || e.touches.length !== 1) return;
+  const t = e.touches[0]; const dx = t.clientX - sx, dy = t.clientY - sy;
+  const ax = Math.abs(dx), ay = Math.abs(dy);
+  if(Math.max(ax, ay) < 22) return;
+  tracking = false;
+  if(ax > ay) move(dx > 0 ? 'right' : 'left'); else move(dy > 0 ? 'down' : 'up');
 }, {passive:false});
 document.addEventListener('touchend', e => {
   if(!tracking) return; tracking = false;
@@ -530,8 +543,8 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('dblclick', e => e.preventDefault());
 
 window.addEventListener('resize', () => { finishPending(); geometry(); buildCells(); renderAll(false); });
-document.addEventListener('visibilitychange', () => { if(document.hidden){ finishPending(); saveGame(); saveMeta(); } });
-window.addEventListener('pagehide', () => { finishPending(); saveGame(); saveMeta(); });
+document.addEventListener('visibilitychange', () => { if(document.hidden){ finishPending(true); flushSave(); } });
+window.addEventListener('pagehide', () => { finishPending(true); flushSave(); });
 
 // ---------- boot ----------
 applySpeed();
@@ -540,7 +553,12 @@ saveMeta();
 geometry(); buildCells(); gridFromCells(dec(game.cells)); renderAll(false); hud();
 saveGame();
 
-if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator && location.protocol === 'https:'){
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  // a new version was installed: save and reload once so it is used right away
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if(hadController){ flushSave(); location.reload(); } });
+}
 
 // test hook
 window.__g = {move, undo, newGame, switchSize, get state(){ return {N, cells:cellsFromGrid(), score:game.score, hist:game.hist.length, over:game.over}; },
