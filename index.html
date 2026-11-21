@@ -47,11 +47,12 @@ body{color:var(--dark); -webkit-font-smoothing:antialiased}
 .tile.merged{z-index:3}
 .tin{width:100%; height:100%; border-radius:calc(var(--u)*3); display:flex; align-items:center; justify-content:center;
   font-weight:700; white-space:nowrap}
-.tile.new .tin{animation:appear 140ms ease-out backwards}
-.tile.merged .tin{animation:pop 150ms ease-out}
-.snap .tile{transition:none!important} .snap .tin{animation:none!important}
-@keyframes appear{from{transform:scale(0); opacity:0} to{transform:scale(1); opacity:1}}
-@keyframes pop{0%{transform:scale(1)} 45%{transform:scale(1.15)} 100%{transform:scale(1)}}
+.tile.new .tin{animation:appear 130ms ease-out backwards}
+.tile.merged{z-index:3}
+.tile.merged .tin{animation:pop 130ms ease-out}
+.snap .tile{transition:none!important}
+@keyframes appear{from{transform:scale(.3)} to{transform:scale(1)}}
+@keyframes pop{0%{transform:scale(1)} 50%{transform:scale(1.1)} 100%{transform:scale(1)}}
 .noanim .tile{transition:none} .noanim .tin{animation:none!important}
 #undoWrap{display:flex; justify-content:center; margin-top:calc(var(--u)*28)}
 #undoBtn{width:calc(var(--u)*68); height:calc(var(--u)*68); border-radius:50%; border:0; background:var(--btn);
@@ -271,7 +272,7 @@ function gridFromCells(cells){
 function renderAll(anim){
   $('tiles').innerHTML = ''; tileEls.clear();
   $('board').classList.add('noanim');
-  for(const row of grid) for(const t of row) if(t) makeTile(t, anim ? 'new' : '');
+  for(const row of grid) for(const t of row) if(t){ const el = makeTile(t, ''); if(anim) animateOnce(el, 'new'); }
   void $('board').offsetWidth;
   if(!anim) requestAnimationFrame(() => $('board').classList.remove('noanim'));
   else $('board').classList.remove('noanim');
@@ -322,25 +323,27 @@ function canMove(){
   return false;
 }
 function snap(){ const b = $('tiles'); b.classList.add('snap'); void b.offsetWidth; b.classList.remove('snap'); }
+function animateOnce(el, cls){
+  el.classList.add(cls);
+  el.addEventListener('animationend', () => el.classList.remove(cls), {once:true});
+}
 function finishPending(interrupt){
-  if(!pending){ if(interrupt) snap(); return; }
+  if(!pending) return;
   clearTimeout(pending.timer);
   const p = pending; pending = null;
-  for(const t of p.removed){ const el = tileEls.get(t.id); if(el){ el.remove(); tileEls.delete(t.id); } }
-  for(const t of p.merged) makeTile(t, interrupt ? '' : 'merged');
-  if(p.spawn) makeTile(p.spawn, interrupt ? '' : 'new');
+  for(const t of p.merged){ const el = tileEls.get(t.id); if(el){ el.style.zIndex = ''; animateOnce(el, 'merged'); } }
+  if(p.spawn) animateOnce(makeTile(p.spawn, ''), 'new');
   if(interrupt) snap();
-  if(!interrupt && game.over) hud();
+  if(game.over) hud();
 }
 let saveT = 0;
 function scheduleSave(){ clearTimeout(saveT); saveT = setTimeout(flushSave, 300); }
 function flushSave(){ clearTimeout(saveT); saveGame(); saveMeta(); }
 function move(dir){
   if(game.over || anyModal()) return;
-  finishPending(true);
   const before = enc(cellsFromGrid()) + '|' + game.score;
   const ng = []; for(let r=0;r<N;r++) ng.push(new Array(N).fill(null));
-  const moves = [], removed = [], merged = [];
+  const moves = [], pairs = [], merged = [];
   let gained = 0, changed = false;
   for(const line of lines(dir)){
     const ts = line.map(([r,c]) => grid[r][c]).filter(Boolean);
@@ -350,16 +353,18 @@ function move(dir){
       const a = ts[i], b = ts[i+1];
       if(b && b.e === a.e){
         const m = {id:nextId++, e:a.e+1, r:tr, c:tc};
-        moves.push([a,tr,tc],[b,tr,tc]); removed.push(a,b); merged.push(m);
+        pairs.push([a,b,m]); merged.push(m);
         ng[tr][tc] = m; gained += val(m.e); changed = true; i++;
       } else {
         if(a.r!==tr || a.c!==tc) changed = true;
-        moves.push([a,tr,tc]); a.r = tr; a.c = tc; ng[tr][tc] = a;
+        moves.push([a,tr,tc]); ng[tr][tc] = a;
       }
       k++;
     }
   }
-  if(!changed) return;
+  if(!changed) return;           // nothing can move: do absolutely nothing
+  finishPending(true);            // previous animation: settle instantly
+  for(const [a,tr,tc] of moves){ a.r = tr; a.c = tc; }
   game.hist.push(before);
   grid = ng;
   game.score += gained;
@@ -378,8 +383,15 @@ function move(dir){
   scheduleSave();
   // animate
   for(const [t,r,c] of moves){ const el = tileEls.get(t.id); if(el) placeEl(el, r, c); }
+  // merge like the original: the front tile vanishes, the rear tile becomes the merged value and slides in
+  for(const [a,b,m] of pairs){
+    const ea = tileEls.get(a.id); if(ea){ ea.remove(); tileEls.delete(a.id); }
+    const eb = tileEls.get(b.id); tileEls.delete(b.id);
+    if(eb){ tileEls.set(m.id, eb); styleTile(eb, m.e); eb.style.zIndex = '3'; placeEl(eb, m.r, m.c); }
+    else makeTile(m, '');
+  }
   const ms = SPEEDS[meta.speed] ?? 100;
-  pending = {removed, merged, spawn, timer:0};
+  pending = {merged, spawn, timer:0};
   hud(); $('over').classList.remove('show');
   if(ms === 0) finishPending(true);
   else pending.timer = setTimeout(() => finishPending(false), ms);
@@ -515,7 +527,8 @@ $('impBtn').onclick = () => {
 let sx = 0, sy = 0, tracking = false;
 document.addEventListener('touchstart', e => {
   if(e.touches.length !== 1) { tracking = false; return; }
-  sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
+  sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+  tracking = sy < window.innerHeight - 90 && sy > 40;
 }, {passive:true});
 document.addEventListener('touchmove', e => {
   if(!e.target.closest('.panel')) e.preventDefault();
