@@ -174,7 +174,7 @@ if(!meta){
     lb:{4:[{id:'orig', score:164148, tile:13, date:null, undos:null}]}};
   store.set('meta', meta);
 }
-const saveMeta = () => store.set('meta', meta);
+const saveMeta = () => { if(!noSave) store.set('meta', meta); };
 
 // ---------- colours ----------
 const COLORS = {1:['#ece4db','#756e66'],2:['#eadfca','#756e66'],3:['#e8b381'],4:['#df915f'],5:['#e8806a'],6:['#dc5f45'],
@@ -204,7 +204,9 @@ function loadGame(n){
   if(meta.record[n] == null) meta.record[n] = 0;
   if(!meta.lb[n]) meta.lb[n] = [];
 }
+let noSave = false;
 function saveGame(){
+  if(noSave) return;
   game.cells = enc(cellsFromGrid());
   if(!store.set('game:'+N, game)){
     // storage full: trim oldest half of the undo history and retry
@@ -515,6 +517,7 @@ $('impBtn').onclick = () => {
   $('bkAction').onclick = () => {
     let data; try{ data = JSON.parse(b64d($('bkText').value)); }catch(e){ $('bkNote').textContent = 'Invalid code.'; return; }
     confirmBox('Import backup?', 'All current games and scores will be replaced.', 'Import', () => {
+      noSave = true; clearTimeout(saveT);   // don't let the running game overwrite the import on reload
       Object.keys(localStorage).filter(k => k.startsWith(P)).forEach(k => localStorage.removeItem(k));
       for(const [k,v] of Object.entries(data)) if(k.startsWith(P)) localStorage.setItem(k, v);
       location.reload();
@@ -566,6 +569,7 @@ saveMeta();
 geometry(); buildCells(); gridFromCells(dec(game.cells)); renderAll(false); hud();
 saveGame();
 
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
 if('serviceWorker' in navigator && location.protocol === 'https:'){
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.register('sw.js').catch(()=>{});
