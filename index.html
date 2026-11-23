@@ -95,10 +95,14 @@ textarea{width:100%; height:calc(var(--u)*90); border:2px solid var(--frame); bo
 .lb .sub{font-size:calc(var(--u)*11.5); color:#a99f94; font-weight:700}
 .chip{display:inline-block; min-width:calc(var(--u)*46); padding:calc(var(--u)*3) calc(var(--u)*5); border-radius:calc(var(--u)*3);
   text-align:center; font-weight:700; font-size:calc(var(--u)*12)}
+#warn{display:none; position:fixed; left:0; right:0; top:0; z-index:60; background:#c8202a; color:#fff; font-weight:700;
+  font-size:13px; text-align:center; padding:calc(env(safe-area-inset-top) + 6px) 10px 6px}
+#warn.show{display:block}
 .empty{text-align:center; padding:calc(var(--u)*20) 0; font-weight:700}
 </style>
 </head>
 <body>
+<div id="warn">Saving failed. Please export a backup: Menu → Settings → Export</div>
 <div id="app">
   <div id="top">
     <div id="logo">2048</div>
@@ -168,6 +172,29 @@ const store = {
   }
 };
 
+// Undo history lives in IndexedDB in chunks, so the board itself (localStorage) stays tiny and always saves.
+const idb = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    try{ const r = indexedDB.open('u2048', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('hist');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }catch(e){ rej(e); }
+  }));
+  const range = n => IDBKeyRange.bound(n+':', n+':\uffff');
+  return {
+    async rows(n){ const db = await open(); return new Promise((res, rej) => {
+      const out = []; const rq = db.transaction('hist').objectStore('hist').openCursor(range(n));
+      rq.onsuccess = () => { const c = rq.result; if(c){ out.push([c.key, c.value]); c.continue(); } else res(out); };
+      rq.onerror = () => rej(rq.error); }); },
+    async write(puts, dels, clearN){ const db = await open(); return new Promise((res, rej) => {
+      const tx = db.transaction('hist', 'readwrite'); const st = tx.objectStore('hist');
+      if(clearN != null) st.delete(range(clearN));
+      for(const [k,v] of puts) st.put(v, k);
+      for(const k of dels) st.delete(k);
+      tx.oncomplete = res; tx.onerror = tx.onabort = () => rej(tx.error); }); }
+  };
+})();
+
 let meta = store.get('meta', null);
 if(!meta){
   meta = {size:4, speed:'Normal', best:{4:164148}, record:{4:13},
@@ -192,29 +219,66 @@ function emptyCells(){ return new Array(N*N).fill(0); }
 const enc = cells => cells.map(e => e.toString(36)).join('');
 const dec = s => s.split('').map(ch => parseInt(ch, 36));
 
+const CH = 500;                         // history entries per IndexedDB chunk
+let histReady = false, histBase = 0, histDirty = Infinity, histChunks = 0, histClear = false, migrated = null;
+let saveFailed = false;
+const ckey = (n, i) => n + ':' + String(i).padStart(6, '0');
+
 function loadGame(n){
   N = n;
   let g = store.get('game:'+n, null);
+  migrated = null;
   if(!g || !g.cells || g.cells.length !== n*n){
-    g = {id: Date.now(), cells: enc(emptyCells()), score:0, hist:[], undos:0, over:false};
-    const c = emptyCells(); spawnInto(c); spawnInto(c); g.cells = enc(c);
+    const c = emptyCells(); spawnInto(c); spawnInto(c);
+    g = {id: Date.now(), cells: enc(c), score:0, undos:0, over:false, hl:0};
   }
-  game = g;
+  if(Array.isArray(g.hist)){ migrated = g.hist; g.hl = g.hist.length; }   // old save format
+  game = {id:g.id, cells:g.cells, score:g.score||0, undos:g.undos||0, over:!!g.over, hl:g.hl||0, hist:[]};
+  histReady = false; histBase = game.hl; histDirty = Infinity; histClear = false; histChunks = 0;
   if(meta.best[n] == null) meta.best[n] = 0;
   if(meta.record[n] == null) meta.record[n] = 0;
   if(!meta.lb[n]) meta.lb[n] = [];
+  // keep best / record in line with the stored game (e.g. after an import)
+  meta.best[n] = Math.max(meta.best[n], game.score);
+  meta.record[n] = Math.max(meta.record[n], ...dec(game.cells));
+}
+function loadHist(){
+  const n = N, gid = game.id;
+  const ready = base => {
+    game.hist = base.concat(game.hist);
+    histDirty = Math.min(histDirty, base.length);
+    histBase = 0; histReady = true; hud(); saveHist(); saveGame();
+  };
+  if(migrated){ histClear = true; const m = migrated; migrated = null; ready(m); return; }
+  if(!game.hl){ histClear = true; ready([]); return; }
+  idb.rows(n).then(rows => {
+    if(N !== n || game.id !== gid || histReady) return;
+    rows.sort((a,b) => a[0] < b[0] ? -1 : 1);
+    if(rows.some(r => r[1].gid !== gid)) histClear = true;
+    histChunks = rows.length;
+    const items = [].concat(...rows.filter(r => r[1].gid === gid).map(r => r[1].items));
+    ready(items.slice(0, game.hl));
+  }).catch(() => { if(N === n && game.id === gid && !histReady) ready([]); });
 }
 let noSave = false;
 function saveGame(){
   if(noSave) return;
   game.cells = enc(cellsFromGrid());
-  if(!store.set('game:'+N, game)){
-    // storage full: trim oldest half of the undo history and retry
-    while(game.hist.length > 50){
-      game.hist = game.hist.slice(Math.floor(game.hist.length/2));
-      if(store.set('game:'+N, game)) break;
-    }
-  }
+  const g = {id:game.id, cells:game.cells, score:game.score, undos:game.undos, over:game.over, hl:histBase + game.hist.length};
+  const ok = store.set('game:'+N, g);
+  if(!ok !== saveFailed){ saveFailed = !ok; $('warn').classList.toggle('show', saveFailed); }
+}
+function saveHist(){
+  if(noSave || !histReady) return;
+  const n = N, gid = game.id, h = game.hist;
+  const last = h.length ? Math.floor((h.length-1)/CH) : -1;
+  const dels = []; for(let i = last+1; i < histChunks; i++) dels.push(ckey(n, i));
+  if(histDirty === Infinity && !histClear && !dels.length) return;
+  const from = histClear ? 0 : Math.floor(Math.min(histDirty, Math.max(h.length-1, 0))/CH);
+  const puts = []; for(let i = from; i <= last; i++) puts.push([ckey(n, i), {gid, items:h.slice(i*CH, (i+1)*CH)}]);
+  const clear = histClear ? n : null;
+  histChunks = last+1; histDirty = Infinity; histClear = false;
+  idb.write(puts, dels, clear).catch(() => {});
 }
 function spawnInto(cells){
   const free = []; cells.forEach((e,i) => { if(!e) free.push(i); });
@@ -294,8 +358,9 @@ function hud(){
   setVal($('best'), meta.best[N]);
   const goal = Math.max(2048, val(meta.record[N]) * 2);
   $('goal').textContent = `Your next goal is to get to the ${goal} tile!`;
-  $('undoBtn').disabled = game.hist.length === 0;
-  $('overUndo').disabled = game.hist.length === 0;
+  const canUndo = histReady && game.hist.length > 0;
+  $('undoBtn').disabled = !canUndo;
+  $('overUndo').disabled = !canUndo;
   $('overScore').textContent = 'Score: ' + game.score;
   $('over').classList.toggle('show', !!game.over);
 }
@@ -340,7 +405,7 @@ function finishPending(interrupt){
 }
 let saveT = 0;
 function scheduleSave(){ clearTimeout(saveT); saveT = setTimeout(flushSave, 300); }
-function flushSave(){ clearTimeout(saveT); saveGame(); saveMeta(); }
+function flushSave(){ clearTimeout(saveT); saveGame(); saveMeta(); saveHist(); }
 function move(dir){
   if(game.over || anyModal()) return;
   const before = enc(cellsFromGrid()) + '|' + game.score;
@@ -367,7 +432,7 @@ function move(dir){
   if(!changed) return;           // nothing can move: do absolutely nothing
   finishPending(true);            // previous animation: settle instantly
   for(const [a,tr,tc] of moves){ a.r = tr; a.c = tc; }
-  game.hist.push(before);
+  game.hist.push(before); histDirty = Math.min(histDirty, game.hist.length-1);
   grid = ng;
   game.score += gained;
   // spawn: always a fresh random roll
@@ -382,7 +447,7 @@ function move(dir){
   for(const m of merged) if(m.e > (meta.record[N]||0)) meta.record[N] = m.e;
   game.over = !canMove();
   if(game.over) upsertLb();
-  scheduleSave();
+  saveGame(); scheduleSave();
   // animate
   for(const [t,r,c] of moves){ const el = tileEls.get(t.id); if(el) placeEl(el, r, c); }
   // merge like the original: the front tile vanishes, the rear tile becomes the merged value and slides in
@@ -399,11 +464,11 @@ function move(dir){
   else pending.timer = setTimeout(() => finishPending(false), ms);
 }
 function undo(){
-  if(!game.hist.length || anyModal('over')) return;
+  if(!histReady || !game.hist.length || anyModal()) return;
   finishPending();
-  const [cs, sc] = game.hist.pop().split('|');
+  const [cs, sc] = game.hist.pop().split('|'); histDirty = Math.min(histDirty, game.hist.length);
   gridFromCells(dec(cs)); game.score = +sc; game.over = false; game.undos++;
-  scheduleSave(); renderAll(false); hud();
+  saveGame(); scheduleSave(); renderAll(false); hud();
 }
 
 // ---------- leaderboard ----------
@@ -452,9 +517,10 @@ modals.forEach(m => $(m).addEventListener('click', e => { if(e.target.id === m) 
 function newGame(){
   finishPending();
   upsertLb();
-  game = {id: Date.now(), cells:'', score:0, hist:[], undos:0, over:false};
+  game = {id: Date.now(), cells:'', score:0, hist:[], undos:0, over:false, hl:0};
+  histReady = true; histBase = 0; histClear = true; histDirty = Infinity;
   const c = emptyCells(); spawnInto(c); spawnInto(c);
-  gridFromCells(c); saveGame(); renderAll(true); hud();
+  gridFromCells(c); saveGame(); saveHist(); renderAll(true); hud();
 }
 function askNew(){
   if(game.score === 0 && !game.hist.length){ newGame(); return; }
@@ -491,9 +557,9 @@ function showSettings(){
 }
 function applySpeed(){ document.documentElement.style.setProperty('--slide', (SPEEDS[meta.speed] ?? 100) + 'ms'); }
 function switchSize(n){
-  finishPending(); saveGame();
+  finishPending(); saveGame(); saveHist();
   meta.size = n; saveMeta();
-  loadGame(n); saveMeta(); geometry(); buildCells(); gridFromCells(dec(game.cells)); renderAll(false); hud();
+  loadGame(n); saveMeta(); geometry(); buildCells(); gridFromCells(dec(game.cells)); renderAll(false); hud(); loadHist();
 }
 $('resetBest').onclick = () => confirmBox('Reset best score?', `Best for ${N}×${N} will be set to your current score (${game.score}).`, 'Reset', () => {
   meta.best[N] = game.score; saveMeta(); hud();
@@ -504,7 +570,7 @@ $('expBtn').onclick = () => {
   saveGame(); saveMeta();
   const data = {}; for(let i=0;i<localStorage.length;i++){ const k = localStorage.key(i); if(k.startsWith(P)) data[k] = localStorage.getItem(k); }
   $('bkText').value = b64e(JSON.stringify(data)); $('bkText').readOnly = true;
-  $('bkAction').textContent = 'Copy'; $('bkNote').textContent = 'Save this code somewhere safe (e.g. Notes).';
+  $('bkAction').textContent = 'Copy'; $('bkNote').textContent = 'Save this code somewhere safe (e.g. Notes). Boards, scores and settings are included; the undo history is not.';
   $('bkAction').onclick = async () => {
     try{ await navigator.clipboard.writeText($('bkText').value); $('bkNote').textContent = 'Copied!'; }
     catch(e){ $('bkText').select(); $('bkNote').textContent = 'Select all and copy manually.'; }
@@ -513,12 +579,11 @@ $('expBtn').onclick = () => {
 };
 $('impBtn').onclick = () => {
   $('bkText').value = ''; $('bkText').readOnly = false;
-  $('bkAction').textContent = 'Import'; $('bkNote').textContent = 'Paste a backup code. This replaces all current data.';
+  $('bkAction').textContent = 'Import'; $('bkNote').textContent = 'Paste a backup or restore code.';
   $('bkAction').onclick = () => {
     let data; try{ data = JSON.parse(b64d($('bkText').value)); }catch(e){ $('bkNote').textContent = 'Invalid code.'; return; }
-    confirmBox('Import backup?', 'All current games and scores will be replaced.', 'Import', () => {
+    confirmBox('Import?', 'The games in this code replace your current ones.', 'Import', () => {
       noSave = true; clearTimeout(saveT);   // don't let the running game overwrite the import on reload
-      Object.keys(localStorage).filter(k => k.startsWith(P)).forEach(k => localStorage.removeItem(k));
       for(const [k,v] of Object.entries(data)) if(k.startsWith(P)) localStorage.setItem(k, v);
       location.reload();
     });
@@ -567,7 +632,7 @@ applySpeed();
 loadGame(meta.size || 4);
 saveMeta();
 geometry(); buildCells(); gridFromCells(dec(game.cells)); renderAll(false); hud();
-saveGame();
+saveGame(); saveMeta(); loadHist();
 
 if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
 if('serviceWorker' in navigator && location.protocol === 'https:'){
@@ -578,7 +643,7 @@ if('serviceWorker' in navigator && location.protocol === 'https:'){
 }
 
 // test hook
-window.__g = {move, undo, newGame, switchSize, get state(){ return {N, cells:cellsFromGrid(), score:game.score, hist:game.hist.length, over:game.over}; },
+window.__g = {move, undo, newGame, switchSize, get state(){ return {N, cells:cellsFromGrid(), score:game.score, hist:game.hist.length, over:game.over, ready:histReady}; },
   set(cells, score){ finishPending(); gridFromCells(cells); game.score = score||0; game.over = !canMove(); saveGame(); renderAll(false); hud(); }};
 })();
 </script>
